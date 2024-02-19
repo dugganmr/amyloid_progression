@@ -67,11 +67,12 @@ df2$cindex_percent <- (df2$cindex_freq/df2$cindex_denom)*100
 
 #Generate Slopes
 outcome <- lme(outcome ~ Time, data = df2, random = ~ Time | ID)
-outcome_slope <- coef(outcome) #
+outcome_slope <- coef(outcome)
+colnames(outcome_slope )[colnames(outcome_slope) =="Time"] <- "outcome"
+outcome_slope <- as.data.frame(outcome_slope)[c(2)]
+outcome_slope <- tibble::rownames_to_column(outcome_slope, "ID")
 outcome_slope <- sapply( outcome_slope, as.numeric )
-outcome_slope[,"outcome"] <- as.numeric(scale(outcome_slope[,"outcome"]))
-soma2<-left_join(soma2,outcome_slope, by=c("ID"))
-
+df2<-left_join(df2,outcome_slope, by=c("ID"))
 
 #format for analyses
 length(df2$ID) # observations
