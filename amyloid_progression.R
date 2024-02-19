@@ -83,8 +83,6 @@ df2$sex <- as.factor(df2$sex)
 df2$sex <- relevel(df2$sex, ref = "0")
 df2$apoe <- as.factor(df2$apoe)
 df2$apoe <- relevel(df2$apoe, ref = "0")
-df2$infection <- as.factor(df2$infection )
-df2$infection  <- relevel(df2$infection, ref = "0")
 #select predictors
 df_vars <- as.data.frame(df2)[c(00:00)]
 
