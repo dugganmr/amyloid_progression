@@ -1,4 +1,5 @@
-#the following code is provided in a general format (e.g., predictor variables, response variables, columns #s etc.,) that is readily adaptable for specific analyses
+#the following code is provided in a general format (e.g., predictor variables, response variables, columns #s etc.,)
+#that is readily adaptable for specific analyses
 library(stats)
 library(nlme)
 library(performance)
