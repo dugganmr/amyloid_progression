@@ -1,70 +1,112 @@
-#primary analyses (linear regression)
-#adaptable for specific variables (e.g., columns #s) and file names
-library(tidyverse)       
-library(haven)           
-library(readxl)          
-library(data.table)
+#the following code is provided in a general format (e.g., predictor variables, response variables, columns #s etc.,) that is readily adaptable for specific analyses
+library(stats)
 library(nlme)
+library(performance)
+library(survival)
+library(Seurat)
+library(writexl)
 
-
-#load predictor data (SomaScan proteins)
-df_a<-readRDS(file = "filename")
-
-#load outcome data set (PET, ADRD biomarkers etc.,)
-df_b <- read_sas("filename")
-#merge datasets
-df1 <-left_join(df_b, df_a, by = c("ID", "visit"))
-#exclude participants with neurovascular conditions that could affect brain structure or function (e.g., strokes)
-neuro_comp<-read_excel("filename")
-df2 <- left_join(df1, neuro_comp, by = c("ID", "visit"))
-df2 <- filter(df2, exclude == "0")
-#exclude participants with cognitive impairment
-cog_impair <-read_excel("filename")
-df2 <- left_join(df2, cog_impair, by = c("ID", "visit"))
-df2 <- filter(df2, dx == "0")
-#load covariates
-covar <- read_sas("filename")
-df2 <-left_join(df2, covar, by = c("ID", "visit"))
+#BLSA
+#load predictor/outcome datasets (PET, SomaScan proteomic, pQTL, ADRD biomarker etc.,)
+df1<-readRDS(file = "filename")
 
 #calculate co-morbidity index
-df2$cindex_freq <-rowSums(df2[,c("obesity0", "bp_risk0","diabetes0",
+df1$cindex_freq <-rowSums(df1[,c("obesity0", "bp_risk0","diabetes0",
 "cancer0", "hid0", "chf0", "copd0", "ckd0")])
-df2$cindex_denom <- 8-(is.na(df2$obesity0) + is.na(df2$bp_risk0) + 
-is.na(df2$diabetes0) + is.na(df2$cancer0) + 
-is.na(df2$hid0) + is.na(df2$chf0) + is.na(df2$copd0)+ is.na(df2$ckd0))
-df2$cindex_percent <- (df2$cindex_freq/df2$cindex_denom)*100
+df1$cindex_denom <- 8-(is.na(df1$obesity0) + is.na(df1$bp_risk0) + 
+is.na(df1$diabetes0) + is.na(df1$cancer0) + 
+is.na(df1$hid0) + is.na(df1$chf0) + is.na(df1$copd0)+ is.na(df1$ckd0))
+df1$cindex_percent <- (df1$cindex_freq/df1$cindex_denom)*100
 
-#Generate Slopes
-outcome <- lme(outcome ~ Time, data = df2, random = ~ Time | ID)
+#generate slopes (e.g., PiB)
+outcome <- lme(outcome ~ Time, data = df1, random = ~ Time | ID)
+check_model(outcome)
 outcome_slope <- coef(outcome)
 colnames(outcome_slope )[colnames(outcome_slope) =="Time"] <- "outcome"
 outcome_slope <- as.data.frame(outcome_slope)[c(2)]
 outcome_slope <- tibble::rownames_to_column(outcome_slope, "ID")
 outcome_slope <- sapply( outcome_slope, as.numeric )
-df2<-left_join(df2,outcome_slope, by=c("ID"))
+df1<-left_join(df1,outcome_slope, by=c("ID"))
 
 #format for analyses
-length(df2$ID) # observations
-length(unique(df2$ID)) #  participants 
-df2<-as.data.frame(df2)
-df2$race <- as.factor(df2$race)
-df2$race <- relevel(df2$race, ref = "0")
-df2$sex <- as.factor(df2$sex)
-df2$sex <- relevel(df2$sex, ref = "0")
-df2$apoe <- as.factor(df2$apoe)
-df2$apoe <- relevel(df2$apoe, ref = "0")
+length(df1$ID) # observations
+length(unique(df1$ID)) #  participants 
+df1<-as.data.frame(df1)
+df1$race <- as.factor(df1$race)
+df1$race <- relevel(df1$race, ref = "0")
+df1$sex <- as.factor(df1$sex)
+df1$sex <- relevel(df1$sex, ref = "0")
+df1$apoe <- as.factor(df1$apoe)
+df1$apoe <- relevel(df1$apoe, ref = "0")
 #select predictors
-df_vars <- as.data.frame(df2)[c(00:00)]
+df_vars <- as.data.frame(df1)[c(00:00)]
 
-#linear regression models (loop)
+#predictors x dichotomous response variable (e.g., PIB status)
+output <- list()  # Create empty list
+for (i in 1:length(df_vars)){
+  var=colnames(df_vars)[i]
+  output[[var]] = list() # Create one entry for each variable
+  vars <- df_vars[,i]
+  fit <- glm(outcome ~ vars + age_covary + Sex + Race + educ_years + apoe4 + cindex_percent+batch
+             , data = df1, family = "binomial")
+  output[[var]]=summary(fit)$coefficients[c(2), ]
+}
+output<-as.data.frame(output)
+write_xlsx(output,"results.xlsx")
+
+#predictors x continuous response variable (e.g., PiB slopes)
 output <- list()
 for (i in 1:length(df_vars)){
   var=colnames(df_vars)[i]
   output[[var]] = list() 
   vars <- df_vars[,i]
   fit <- lm(outcome ~ vars + age + sex + race + educ_years + cindex_percent + PIB+apoe4+batch,
-            data = soma2, na.action=na.omit)
+            data = df1, na.action=na.omit)
   output[[var]]=summary(fit)$coefficients[ 2,]
 }
 output<-as.data.frame(output)
 write_xlsx(output,"results.xlsx")
+
+#for PiB status stratified analyses, filter PiB==1 or PiB==0
+#for sex stratified analyses, filter sex==1 or sex==0
+#for ADRD biomarker analyses, include "eGFR"
+#for minimally adjusted models, remove "race" and "educ_years"
+
+
+
+#ARIC
+#load predictor/outcome datasets
+df1<-readRDS(file = "ARIC_filename")
+#predictors x dichotomous response variable (e.g., PIB status)
+output <- list()  # Create empty list
+for (i in 1:length(df_vars)){
+  var=colnames(df_vars)[i]
+  output[[var]] = list() # Create one entry for each variable
+  vars <- df_vars[,i]
+  fit <- glm(outcome ~ vars + age + sex + race_center + education + E4 + BMI+hyperten+smk+diabetes+eGFR
+             , data = df1, family = "binomial")
+  output[[var]]=summary(fit)$coefficients[c(2), ]
+}
+output<-as.data.frame(output)
+write_xlsx(output,"results.xlsx")
+
+#predictors x dichotomous response variable (e.g., incident dementia risk)
+output <- list()  # Create empty list
+for (i in 1:length(df_vars)){
+  var=colnames(df_vars)[i]
+  output[[var]] = list() # Create one entry for each variable
+  vars <- df_vars[,i]
+  fit <- coxph(Surv(time_toDx) ~ vars + age + sex + race_center + education + E4 + BMI+hyperten+smk+diabetes+eGFR
+             , data = df1)
+  output[[var]]=summary(fit)$coefficients[c(2), ]
+}
+output<-as.data.frame(output)
+write_xlsx(output,"results.xlsx")
+
+
+
+#Microglia
+#load predictor/outcome datasets
+df1<-readRDS(file = "microglia_filename")
+results <- FindMarkers(df1, ident.1 = 1, assay=SCT, test.use="wilcox", min.pct=0.01, logfc.threshold=0.1)
+write_xlsx(results,"results.xlsx")
