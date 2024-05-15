@@ -10,37 +10,6 @@ library(nlme)
 #load predictor data (SomaScan proteins)
 df_a<-readRDS(file = "filename")
 
-#WGCNA
-powers = c(seq(1,20,by=1))
-sft = pickSoftThreshold(df_a[,7:948], powerVector = powers, networkType="signed", verbose = 2) 
-par(mfrow = c(1,2))
-cex1 = 0.9
-#  Scale-free topology fit index as a function of the soft-thresholding power
-plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
-     xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
-     main = paste("Scale independence"));
-text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
-     labels=powers,cex=cex1,col="red");
-abline(h=0.90,col="red")
-#export 4.5x6.5
-# Mean connectivity as a function of the soft-thresholding power
-plot(sft$fitIndices[,1], sft$fitIndices[,5],
-     xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
-     main = paste("Mean connectivity"))
-text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
-mergingThresh<-0.10 
-net<-blockwiseModules(df_a[,7:948], 
-                      corType = "bicor", 
-                      power = 14, 
-                      networkType = "signed", 
-                      TOMType = "signed", 
-                      minModuleSize = 5,
-                      mergeCutHeight = mergingThresh,
-                      deepSplit = 2, 
-                      pamRespectsDendro = FALSE)
-MEsAutomatic<-net$MEs
-rownames(MEsAutomatic) <- 1:nrow(MEsAutomatic)
-df_a<-cbind(df_a, MEsAutomatic)
 #load outcome data set (PET, ADRD biomarkers etc.,)
 df_b <- read_sas("filename")
 #merge datasets
