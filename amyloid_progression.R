@@ -111,3 +111,17 @@ write_xlsx(output,"results.xlsx")
 df1<-readRDS(file = "microglia_filename")
 results <- FindMarkers(df1, ident.1 = 1, assay=SCT, test.use="wilcox", min.pct=0.01, logfc.threshold=0.1)
 write_xlsx(results,"results.xlsx")
+
+
+#Two sample MR
+exposure <-readRDS(file="pQTLs")
+outcome <-readRDS(file="Outcome")
+harmonized <- harmonise_data(exposure_dat = exposure,outcome_dat = outcome)  
+mr(harmonized)
+mr_presso(BetaOutcome = "beta.outcome", 
+          BetaExposure = "beta.exposure", 
+          SdOutcome = "se.outcome", 
+          SdExposure = "se.exposure", 
+          OUTLIERtest = TRUE, 
+          DISTORTIONtest = TRUE, 
+          data = harmonized, NbDistribution = 1000,  SignifThreshold = 0.05)
