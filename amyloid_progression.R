@@ -6,6 +6,7 @@ library(performance)
 library(survival)
 library(Seurat)
 library(writexl)
+library(variancePartition)
 
 #BLSA
 #load predictor/outcome datasets (PET, SomaScan proteomic, pQTL, ADRD biomarker etc.,)
@@ -48,7 +49,7 @@ for (i in 1:length(df_vars)){
   var=colnames(df_vars)[i]
   output[[var]] = list() # Create one entry for each variable
   vars <- df_vars[,i]
-  fit <- glm(outcome ~ vars + age_covary + Sex + Race + educ_years + apoe4 + cindex_percent+batch
+  fit <- glm(outcome ~ vars + age + Sex + Race + educ_years + apoe4 + cindex_percent+batch
              , data = df1, family = "binomial")
   output[[var]]=summary(fit)$coefficients[c(2), ]
 }
@@ -61,7 +62,7 @@ for (i in 1:length(df_vars)){
   var=colnames(df_vars)[i]
   output[[var]] = list() 
   vars <- df_vars[,i]
-  fit <- lm(outcome ~ vars + age + sex + race + educ_years + cindex_percent + PIB+apoe4+batch,
+  fit <- lm(outcome ~ vars + age + Sex + Race + educ_years + cindex_percent +apoe4+batch,
             data = df1, na.action=na.omit)
   output[[var]]=summary(fit)$coefficients[ 2,]
 }
@@ -73,7 +74,41 @@ write_xlsx(output,"results.xlsx")
 #for ADRD biomarker analyses, include "eGFR"
 #for minimally adjusted models, remove "race" and "educ_years"
 
+#permutation testing
+covariates <- c("age", "Sex", "Race", "educ_years", "cindex_percent", "apoe4", "batch")
+predictors <- colnames(df1)[immuneprotein1:ncol(df1)]
+fit_model_and_get_pvalues <- function(df1, predictors, covariates) {
+  p_values <- NULL
+  for (pred in predictors) {
+    formula <- as.formula(paste("mean.cortical_slope ~", paste(c(paste0("`", pred, "`"), 
+                                                                 covariates), collapse = " + ")))
+    model <- lm(formula, df1 = df1)
+    summary_model <- summary(model)
+    p_values <- c(p_values, summary_model$coefficients[paste0("`", pred, "`"), "Pr(>|t|)"])
+  }
+  return(p_values)
+}
+num_permutations <- 100
+perm_pvalues <- matrix(NA, nrow = num_permutations, ncol = length(predictors))
+colnames(perm_pvalues) <- predictors
+set.seed(60)
+for (i in 1:num_permutations) {
+  data_perm <- df1
+  data_perm$mean.cortical_slope <- sample(df1$mean.cortical_slope, replace=T)  # Permute the response variable
+  perm_pvalues[i, ] <- fit_model_and_get_pvalues(data_perm, predictors, covariates)
+  print(paste("iteration", i ))
+}
+perm_pvalues_df <- as.data.frame(perm_pvalues)
+perm_pvalues_df$count_below_05 <- apply(perm_pvalues_df, 1, function(row) sum(row < 0.05))
+mean(perm_pvalues_df$count_below_05)
 
+#variance partitioning
+covary<-as.data.frame(select(df1, age_covary , Sex , Race , educ_years , cindex_percent ,apoe4,batch))
+form<- ~  age_covary + Sex + Race + educ_years + cindex_percent +apoe4+batch
+df_vars <- as.data.frame(df1)[c(00:00)]
+varPart <- fitExtractVarPartModel(df_vars, form, covary)
+vp <- sortCols(varPart)
+plotVarPart(vp)
 
 #ARIC
 #load predictor/outcome datasets
@@ -103,7 +138,6 @@ for (i in 1:length(df_vars)){
 }
 output<-as.data.frame(output)
 write_xlsx(output,"results.xlsx")
-
 
 
 #Microglia
